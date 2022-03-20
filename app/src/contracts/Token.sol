@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.4.22 <0.9.0;
+pragma solidity ^0.5.0;
 
 contract Token {
     string public name = "Alpha Coin";
@@ -10,8 +10,18 @@ contract Token {
 
     uint256 public totalSupply;
 
+    mapping(address => uint256) public balanceOf;
+
     constructor() public {
         // 10 lakh units of QAlpha = 10 lakh x (10 ^ 18)
         totalSupply = 1000000 * (10 ** decimals);
+        balanceOf[msg.sender] = totalSupply;
     }
+
+    function transfer(address _to, uint256 _value) public returns (bool success) {
+        balanceOf[msg.sender] = balanceOf[msg.sender]- (_value);
+        balanceOf[_to] = balanceOf[_to] + (_value);
+        success = true;
+    }
+
 }
