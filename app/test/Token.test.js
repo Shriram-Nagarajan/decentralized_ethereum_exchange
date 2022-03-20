@@ -63,12 +63,54 @@ contract('Token', ([deployer, receiver]) => {
             balance.toString().should.equal(totalSupply.toString());
         })
 
-        it('transfer test', async() => {
-            await token.transfer(receiver, tokens(3)); // Send 3 tokens or 3 ^ 18 wei
-            const updatedBalanceSender = await token.balanceOf(deployer)
-            const updatedBalanceReceiver = await token.balanceOf(receiver)
-            updatedBalanceSender.toString().should.equal(tokens(999997).toString()) // verify balance increased by 3 tokens
-            updatedBalanceReceiver.toString().should.equal(tokens(3).toString()) // verify balance decreased by 3 tokens
-        })
     })
+
+    describe('sending tokens', async() => {
+
+        
+        
+        describe('success', async() => {
+            
+            let result, amount
+
+            beforeEach(async() => {
+                amount = tokens(3)
+                result = await token.transfer(receiver, amount) // Send 3 tokens or 3 ^ 18 wei
+            })
+        
+            it('verify tokens transferred', async() => {
+                const updatedBalanceSender = await token.balanceOf(deployer)
+                const updatedBalanceReceiver = await token.balanceOf(receiver)
+                updatedBalanceSender.toString().should.equal(tokens(999997).toString()) // verify balance increased by 3 tokens
+                updatedBalanceReceiver.toString().should.equal(amount.toString()) // verify balance decreased by 3 tokens
+            })
+        
+            it('emits a transfer event', async() => {
+                const log = result.logs[0]
+                log.event.should.equal('Transfer', 'event name is correct')
+                const event = log.args
+                event.from.toString().should.eq(deployer, 'from is correct')
+                event.to.toString().should.eq(receiver, 'to is correct')
+                event.value.toString().should.eq(amount.toString(), 'value is correct')
+            })
+    
+        })
+        
+        describe('failure', async() => {
+    
+            it('rejects insufficient balances', async() => {
+                let invalidAmount
+                invalidAmount = tokens(100000000)
+                await token.transfer(receiver, invalidAmount).should.be.rejectedWith('VM Exception while processing transaction: revert')
+            })
+
+            it('rejects invalid recipients', async() => {
+                await token.transfer(0x0, tokens(100)).should.be.rejected
+            })
+        })
+
+    })
+    
+
+
 })
