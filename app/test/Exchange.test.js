@@ -223,4 +223,17 @@ contract('Exchange', ([deployer, feeAccount, user1]) => {
 
     })
 
+    describe('making orders', () => {
+        
+        beforeEach(async() => {
+            await exchange.makeOrder(token.address, tokens(1), ETHER_ADDRESS, ether(1), {from:user1})
+        })
+
+        it('tracks the newly created order', async() => {
+            const result = await exchange.orderCount()
+            result.toString().should.eq('1')
+        })
+
+    })
+
 })
