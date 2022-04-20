@@ -241,8 +241,73 @@ contract('Exchange', ([deployer, feeAccount, user1, user2]) => {
         beforeEach(async() => {
             // user1 deposits Ether
             await exchange.depositEther({from:user1, value: ether(1)})
+            //give tokens to user2
+            await token.transfer(user2, tokens(100), {from: deployer})
+            //user2 deposits token
+            await token.approve(exchange.address, tokens(2), {from: user2})
+            await exchange.depositToken(token.address, tokens(2), {from: user2})
             // user1 makes an order to buy tokens with Ether
             await exchange.makeOrder(token.address, tokens(1), ETHER_ADDRESS, ether(1), {from:user1})
+        })
+
+        describe('filling orders', async() => {
+
+            let result
+            describe('success', async()=> {
+
+                beforeEach(async() => {
+                    result = await exchange.fillOrder('1',{from: user2})
+                })
+
+                it('executes the trade & charges fees', async()=> {
+                    let balance = await exchange.balanceOf(token.address, user1)
+                    balance.toString().should.eq(tokens(1).toString(), 'user1 received tokens')
+                    balance = await exchange.balanceOf(ETHER_ADDRESS, user2)
+                    balance.toString().should.eq(ether(2).toString(),'user2 received ether')
+                    balance = await exchange.balanceOf(ETHER_ADDRESS, user1)
+                    balance.toString().should.eq('0','user1 received 0 ether')
+                    balance = await exchange.balanceOf(token.address, user2)
+                    balance.toString().should.eq(tokens(0.9).toString(),'user2 tokens deducted with fee applied')
+                    const feeAccount = await exchange.feeAccount()
+                    balance = await exchange.balanceOf(token.address, feeAccount)
+                    balance.toString().should.eq(tokens(0.1).toString(), 'feeAccount received fee')
+                })
+
+                it('updates filled orders', async()=> {
+                    const filledOrder = await exchange.filledOrders(1)
+                    filledOrder.should.eq(true)
+                })
+
+                it('emits a Trade event', async() => {
+                    const log = result.logs[0]
+                    log.event.should.equal('Trade', 'event name is correct')
+                    const event = log.args
+                    event.id.toString().should.eq('1','id is correct')
+                    event.user.toString().should.eq(user1, 'to is correct')
+                    event.tokenGet.toString().should.eq(token.address, 'tokenGet is correct')
+                    event.amountGet.toString().should.eq(tokens(1).toString(), 'value is correct')
+                    event.tokenGive.toString().should.eq(ETHER_ADDRESS, 'tokenGive is correct')
+                    event.amountGive.toString().should.eq(ether(1).toString(), 'amountGive is correct')
+                    event.userFill.should.eq(user2, 'userFill is correct')
+                    event.timestamp.toString().length.should.be.at.least(1, 'timestamp is present')
+                })
+            })
+
+
+            describe('failure', async() => {
+                it('rejects invalid order ids', async() => {
+                    const invalidOrderId = 99999
+                    await exchange.fillOrder(invalidOrderId, {from: user1}).should.be.rejectedWith(EVM_REVERT)
+                })
+                it('rejects already filled orders', async()=> {
+                    await exchange.fillOrder('1', {from: user2}).should.be.fulfilled
+                    await exchange.fillOrder('1', {from: user2}).should.be.rejectedWith(EVM_REVERT)
+                })
+                it('rejects cancelled orders', async()=> {
+                    await exchange.cancelOrder('1', {from: user1}).should.be.fulfilled
+                    await exchange.fillOrder('1', {from: user2}).should.be.rejectedWith(EVM_REVERT)
+                })
+            })
         })
 
         describe('cancelling orders', async() => {
