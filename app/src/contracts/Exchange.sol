@@ -19,12 +19,14 @@ contract Exchange {
     mapping(address => mapping(address => uint256)) public tokens; // Token balance of users for each token type
     mapping(uint256 => _Order) public orders;
     mapping(uint256 => bool) public cancelledOrders;
+    mapping(uint256 => bool) public filledOrders;
     uint256 public orderCount;
     
     event Deposit(address token, address user, uint256 amount, uint256 balance);
     event Withdraw(address token, address user, uint256 amount, uint256 balance);
     event Order(uint256 id, address user, address tokenGet, uint256 amountGet, address tokenGive,uint256 amountGive, uint256 timestamp);
     event Cancel(uint256 id, address user, address tokenGet, uint256 amountGet, address tokenGive,uint256 amountGive, uint256 timestamp);
+    event Trade(uint256 id, address user, address tokenGet, uint256 amountGet, address tokenGive,uint256 amountGive, address userFill,  uint256 timestamp);
 
     struct _Order {
         uint256 id;
@@ -91,6 +93,33 @@ contract Exchange {
         require(address(_order.user) == msg.sender);
         cancelledOrders[_id] = true;
         emit Cancel(_id, msg.sender, _order.tokenGet, _order.amountGet, _order.tokenGive, _order.amountGive, now);
+    }
+
+    function fillOrder(uint256 _id) public {
+        require(_id > 0 && _id <= orderCount, "Invalid order id");
+        require(!filledOrders[_id], "Order already filled");
+        require(!cancelledOrders[_id], "Cannot fill a cancelled order");
+        // Fetch the order
+        _Order storage _order = orders[_id];
+        _trade(_order.id, _order.user, _order.tokenGet, _order.amountGet, _order.tokenGive, _order.amountGive);
+        // Mark order as filled
+        filledOrders[_order.id] = true;
+    }
+
+    function _trade(uint256 _id, address _user, address _tokenGet, uint256 _amountGet, address _tokenGive,uint256 _amountGive) internal { // Others cannot call this function
+
+        uint256 _feeAmount = (_amountGive * feePercent) / 100;
+        // Execute trade
+        tokens[_tokenGet][msg.sender] = tokens[_tokenGet][msg.sender] - _amountGet;
+        tokens[_tokenGet][_user] = tokens[_tokenGet][_user] + _amountGet;
+        tokens[_tokenGive][msg.sender] = tokens[_tokenGet][msg.sender] + _amountGive;
+        tokens[_tokenGive][_user] = tokens[_tokenGet][_user] - _amountGive;
+        // Charge fees
+        tokens[_tokenGet][msg.sender] = tokens[_tokenGet][msg.sender] - _feeAmount;
+        tokens[_tokenGet][feeAccount] = tokens[_tokenGet][feeAccount] + _feeAmount; // The feeAccount gets the fee
+        // Emit a trade event
+        emit Trade(_id, _user, _tokenGet, _amountGet, _tokenGive, _amountGive, msg.sender, now);
+
     }
 
 }
