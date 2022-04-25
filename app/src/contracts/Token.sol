@@ -38,7 +38,7 @@ contract Token {
 
     function approve(address _spender, uint256 _value) public returns (bool success) {
         require(_spender != address(0));
-        allowance[msg.sender][_spender] = _value;
+        allowance[msg.sender][_spender] = _value; // "msg.sender" can authorize allow of "_value" amount to address of: "_spender"
         emit Approval(msg.sender, _spender, _value);
         return true;
     }
